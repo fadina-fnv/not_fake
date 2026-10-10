@@ -174,10 +174,19 @@ td.num, th.num { text-align: center; font-variant-numeric: tabular-nums; white-s
 .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: baseline; }
 .dot.green { background: var(--go); } .dot.yellow { background: var(--wait); } .dot.red { background: var(--stop); }
 .linkbtn { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; }
-textarea {
+#j-text {
   width: 100%; min-height: 150px; padding: 10px;
   border: 2px solid var(--line); border-radius: 10px; background: var(--card);
   font-family: "JetBrains Mono", Consolas, "Courier New", monospace; font-size: 0.8rem; line-height: 1.4;
+}
+.textin {
+  width: 100%; min-height: 110px; padding: 8px 12px; resize: vertical;
+  background: var(--card); border: 2px solid var(--line); border-radius: 10px; line-height: 1.4;
+}
+.newstext {
+  max-height: 210px; overflow-y: auto; padding: 12px 14px;
+  background: var(--card); border: 2px solid var(--line); border-radius: 10px;
+  white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .rules { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; }
 footer { text-align: center; }
@@ -206,8 +215,8 @@ footer { text-align: center; }
         <p>Помощник подсказывает, можно ли доверять новости, картинке или сообщению. Ты отвечаешь на вопросы, программа считает баллы риска и включает светофор.</p>
         <div class="panel">
           <div class="field">
-            <label class="label" for="exname">Что проверяем?</label>
-            <input type="text" id="exname" maxlength="80" placeholder="Например: новость про снег в июле" autocomplete="off">
+            <label class="label" for="extext">Текст новости <span class="soft small">(необязательно)</span></label>
+            <textarea id="extext" class="textin" maxlength="6000" placeholder="Вставь сюда скопированный текст"></textarea>
           </div>
           <div class="field">
             <span class="label">Скриншот <span class="soft small">(необязательно)</span></span>
@@ -219,7 +228,7 @@ footer { text-align: center; }
               <span id="shot-label-text">Загрузить скриншот</span>
               <input type="file" id="shot-file" accept="image/*">
             </label>
-            <p class="soft small">Скриншот остаётся на твоём устройстве. Он будет перед глазами, пока ты отвечаешь.</p>
+            <p class="soft small">Текст и скриншот остаются на твоём устройстве. Они будут перед глазами, пока ты отвечаешь.</p>
           </div>
         </div>
         <div class="panel">
@@ -233,6 +242,7 @@ footer { text-align: center; }
           <img id="shot-quiz-img" alt="Скриншот проверяемого материала">
           <button type="button" class="linkbtn" id="shot-zoom">Увеличить</button>
         </div>
+        <div id="text-quiz" class="newstext" hidden></div>
         <div class="panel">
           <div class="progress">
             <span class="soft small" id="q-count"></span>
@@ -286,6 +296,10 @@ footer { text-align: center; }
         <div class="panel">
           <h3>Для исследования</h3>
           <p class="small">Если правильный ответ известен, отметь его. Запись попадёт в журнал, и программа посчитает, как часто она права.</p>
+          <div class="field">
+            <label class="label" for="exname">Подпись в журнале</label>
+            <input type="text" id="exname" maxlength="80" autocomplete="off">
+          </div>
           <div class="row">
             <button type="button" class="btn ghost" data-truth="true">Это правда</button>
             <button type="button" class="btn ghost" data-truth="fake">Это фейк</button>
@@ -323,8 +337,8 @@ footer { text-align: center; }
           </table>
         </div>
         <div class="field">
-          <label class="label" for="j-who">Кто проверял</label>
-          <input type="text" id="j-who" maxlength="40" placeholder="Имя и фамилия" autocomplete="off">
+          <label class="label" for="j-who">Кто проверял <span class="soft small">(необязательно)</span></label>
+          <input type="text" id="j-who" maxlength="40" placeholder="Имя" autocomplete="off">
         </div>
         <div class="field">
           <label class="label" for="j-text">Текст журнала</label>
@@ -522,7 +536,20 @@ function outcome(light, truth) {
 }
 
 /* ---------- Состояние ---------- */
-const state = { name: '', type: null, img: null, i: 0, answers: [], result: null, saved: false };
+const state = { stage: 'start', name: '', text: '', type: null, img: null, i: 0, answers: [], result: null, saved: false };
+
+/* Незаконченная проверка запоминается: можно уйти в другое приложение и вернуться */
+const DRAFT = 'proverNovost.draft.v1';
+const DRAFT_IMG = 'proverNovost.shot.v1';
+function persist() {
+  try {
+    localStorage.setItem(DRAFT, JSON.stringify({
+      stage: state.stage, name: state.name, text: state.text, type: state.type, i: state.i,
+      answers: state.answers, saved: state.saved,
+      extext: $('extext').value
+    }));
+  } catch (e) { /* проверка просто не запомнится */ }
+}
 const STORE = 'proverNovost.journal.v1';
 let journal = loadJournal();
 
@@ -552,6 +579,8 @@ function showView(name) {
 }
 function showStage(name) {
   ['start', 'quiz', 'result'].forEach(function (s) { $('stage-' + s).hidden = s !== name; });
+  state.stage = name;
+  persist();
   window.scrollTo(0, 0);
 }
 document.querySelectorAll('.tab').forEach(function (t) {
@@ -572,12 +601,33 @@ $('shot-file').addEventListener('change', function (e) {
   const f = e.target.files && e.target.files[0];
   if (!f || f.type.indexOf('image/') !== 0) return;
   const reader = new FileReader();
-  reader.onload = function () { setShot(reader.result); };
+  reader.onload = function () {
+    // уменьшаем большой скриншот, чтобы он помещался в память телефона
+    const im = new Image();
+    im.onload = function () {
+      try {
+        const k = Math.min(1, 1600 / Math.max(im.width, im.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(im, 0, 0, c.width, c.height);
+        setShot(c.toDataURL('image/jpeg', 0.82));
+      } catch (e) { setShot(reader.result); }
+    };
+    im.onerror = function () { setShot(reader.result); };
+    im.src = reader.result;
+  };
   reader.readAsDataURL(f);
 });
 $('shot-remove').addEventListener('click', function () { setShot(null); $('shot-file').value = ''; });
 function setShot(src) {
   state.img = src;
+  try {
+    if (src) localStorage.setItem(DRAFT_IMG, src); else localStorage.removeItem(DRAFT_IMG);
+  } catch (e) {
+    try { localStorage.removeItem(DRAFT_IMG); } catch (e2) { /* не страшно */ }
+  }
   $('shot-start').hidden = !src;
   $('shot-quiz').hidden = !src;
   if (src) { $('shot-start-img').src = src; $('shot-quiz-img').src = src; }
@@ -588,15 +638,26 @@ $('shot-zoom').addEventListener('click', function () {
   $('shot-zoom').textContent = big ? 'Уменьшить' : 'Увеличить';
 });
 
+/* Подпись для журнала: начало текста, а если текста нет, то номер по порядку */
+function autoName() {
+  if (state.text) return state.text.slice(0, 40).replace(/\s+/g, ' ') + (state.text.length > 40 ? '…' : '');
+  return (state.img ? 'Скриншот ' : 'Материал ') + (journal.length + 1);
+}
 function startCheck(typeKey) {
   state.type = typeKey;
-  state.name = $('exname').value.trim() || ('Материал ' + (journal.length + 1));
+  state.text = $('extext').value.trim();
+  state.name = autoName();
   state.i = 0; state.answers = []; state.result = null; state.saved = false;
+  showText();
   renderQuestion();
   showStage('quiz');
 }
 
 /* ---------- Вопросы ---------- */
+function showText() {
+  $('text-quiz').hidden = !state.text;
+  $('text-quiz').textContent = state.text || '';
+}
 function renderQuestion() {
   const qs = TYPES[state.type].questions;
   const q = qs[state.i];
@@ -606,6 +667,7 @@ function renderQuestion() {
   $('q-how').hidden = !q.how;
   $('q-how').textContent = q.how ? 'Как узнать: ' + q.how : '';
   $('q-back').disabled = state.i === 0;
+  persist();
 }
 document.querySelectorAll('[data-answer]').forEach(function (b) {
   b.addEventListener('click', function () {
@@ -657,8 +719,10 @@ function renderResult() {
     function (q) { return q.how ? 'Как узнать: ' + q.how : ''; });
   fillSigns('r-good', 'r-good-box', r.good, 'ok',
     function () { return '0'; }, function (q) { return q.ok; }, function () { return ''; });
-  $('r-status').textContent = '';
-  document.querySelectorAll('[data-truth]').forEach(function (b) { b.disabled = false; });
+  $('r-status').textContent = state.saved ? 'Эта проверка уже сохранена в журнал.' : '';
+  document.querySelectorAll('[data-truth]').forEach(function (b) { b.disabled = state.saved; });
+  $('exname').value = state.name;
+  $('exname').disabled = state.saved;
   showStage('result');
   $('r-title').focus();
 }
@@ -672,13 +736,16 @@ document.querySelectorAll('[data-truth]').forEach(function (b) {
     });
     storeJournal();
     state.saved = true;
+    $('exname').disabled = true;
+    persist();
     document.querySelectorAll('[data-truth]').forEach(function (x) { x.disabled = true; });
     $('r-status').textContent = 'Сохранено в журнал, запись № ' + journal.length + '.';
     updateCount();
   });
 });
 $('r-again').addEventListener('click', function () {
-  $('exname').value = ''; setShot(null); $('shot-file').value = '';
+  $('exname').value = ''; $('extext').value = ''; state.text = '';
+  setShot(null); $('shot-file').value = '';
   showStage('start');
 });
 $('r-journal').addEventListener('click', function () { showView('journal'); });
@@ -852,6 +919,34 @@ $('j-clear-yes').addEventListener('click', function () {
     table.appendChild(tb); wrap.appendChild(table); box.appendChild(wrap);
     $('about-tables').appendChild(box);
   });
+})();
+
+/* ---------- Возврат к незаконченной проверке после перезагрузки страницы ---------- */
+$('extext').addEventListener('input', persist);
+$('exname').addEventListener('input', function () {
+  if (!state.type || state.saved) return;
+  state.name = $('exname').value.trim() || autoName();
+  $('r-name').textContent = state.name + ' · ' + TYPES[state.type].title;
+  persist();
+});
+(function restore() {
+  let d = null, img = null;
+  try { d = JSON.parse(localStorage.getItem(DRAFT) || 'null'); } catch (e) { d = null; }
+  try { img = localStorage.getItem(DRAFT_IMG); } catch (e) { img = null; }
+  if (img) setShot(img);
+  if (!d) return;
+  $('extext').value = d.extext || '';
+  if (!TYPES[d.type] || !Array.isArray(d.answers)) return;
+  const total = TYPES[d.type].questions.length;
+  state.type = d.type; state.name = d.name || 'Материал'; state.text = d.text || '';
+  state.answers = d.answers.slice(0, total); state.saved = !!d.saved;
+  showText();
+  if (d.stage === 'quiz') {
+    state.i = Math.max(0, Math.min(total - 1, d.i || 0));
+    renderQuestion(); showStage('quiz');
+  } else if (d.stage === 'result' && state.answers.filter(Boolean).length === total) {
+    renderResult();
+  }
 })();
 
 updateCount();
