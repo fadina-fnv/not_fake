@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Проверь новость</title>
+<style>
+/* Макет: одна колонка под телефон; шапка с разделами, ниже один экран за раз (старт, вопрос, результат). */
+:root {
+  --paper: #EEF3F8;
+  --card: #FFFFFF;
+  --ink: #24425F;
+  --ink-soft: #55708A;
+  --line: #C3D2E0;
+  --accent: #1F6FB5;
+  --accent-soft: #DCEBF8;
+  --go: #2F9E62;
+  --go-soft: #DDF3E6;
+  --wait: #D99A00;
+  --wait-soft: #FFF1CC;
+  --stop: #E0634C;
+  --stop-soft: #FDE4DE;
+  --lamp-off: #D3DDE8;
+  --housing: #E4ECF4;
+  --text: "Times New Roman", Times, Georgia, serif;
+  --radius: 14px;
+  color-scheme: light;
+}
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--text);
+  font-size: 19px;
+  line-height: 1.45;
+}
+.app {
+  max-width: 600px;
+  margin: 0 auto;
+  padding-inline: 16px;
+  padding-block: 16px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+button, input, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* Шапка */
+.top { display: flex; flex-direction: column; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand h1 { margin: 0; font-size: 1.7rem; line-height: 1.1; }
+.glyph {
+  display: flex; gap: 4px; padding: 6px 8px;
+  background: var(--housing); border: 2px solid var(--line); border-radius: 999px;
+}
+.glyph i { width: 13px; height: 13px; border-radius: 50%; display: block; }
+.glyph i:nth-child(1) { background: var(--stop); }
+.glyph i:nth-child(2) { background: var(--wait); }
+.glyph i:nth-child(3) { background: var(--go); }
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tab {
+  flex: 1 1 auto;
+  min-height: 46px; padding: 6px 14px;
+  background: var(--card); border: 2px solid var(--line); border-radius: 999px;
+  font-weight: bold;
+}
+.tab[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #FFFFFF; }
+.count {
+  display: inline-block; min-width: 1.5em; margin-left: 4px; padding: 0 6px;
+  background: var(--accent-soft); color: var(--ink); border-radius: 999px; font-size: 0.85em;
+}
+
+/* Общие блоки */
+.stack { display: flex; flex-direction: column; gap: 16px; }
+.panel {
+  background: var(--card); border: 2px solid var(--line); border-radius: var(--radius);
+  padding: 18px; display: flex; flex-direction: column; gap: 14px;
+}
+h2 { margin: 0; font-size: 1.35rem; line-height: 1.2; text-wrap: balance; }
+h3 { margin: 0; font-size: 1.1rem; line-height: 1.25; }
+p { margin: 0; }
+.soft { color: var(--ink-soft); }
+.small { font-size: 0.97rem; }
+.label { font-weight: bold; display: block; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+input[type="text"] {
+  width: 100%; min-height: 50px; padding: 8px 12px;
+  background: var(--card); border: 2px solid var(--line); border-radius: 10px;
+}
+.btn {
+  min-height: 52px; padding: 10px 18px;
+  background: var(--accent); color: #FFFFFF; border: 2px solid var(--accent);
+  border-radius: 12px; font-weight: bold;
+}
+.btn.ghost { background: var(--card); color: var(--accent); }
+.btn.quiet { background: var(--card); color: var(--ink); border-color: var(--line); font-weight: normal; }
+.btn[disabled] { opacity: 0.5; cursor: default; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; }
+.row > .btn { flex: 1 1 140px; }
+
+/* Скриншот */
+.filebtn { position: relative; display: inline-flex; align-items: center; justify-content: center; text-align: center; }
+.filebtn input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.filebtn:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
+.shot {
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
+}
+.shot img {
+  max-width: 100%; max-height: 230px; object-fit: contain;
+  border: 2px solid var(--line); border-radius: 10px; background: var(--housing);
+}
+.shot.big img { max-height: none; }
+
+/* Выбор типа */
+.choices { display: flex; flex-direction: column; gap: 10px; }
+.choice {
+  display: flex; flex-direction: column; gap: 2px; text-align: left;
+  min-height: 64px; padding: 12px 16px;
+  background: var(--accent-soft); border: 2px solid var(--accent); border-radius: 12px;
+}
+.choice b { font-size: 1.1rem; }
+
+/* Вопрос */
+.progress { display: flex; flex-direction: column; gap: 6px; }
+.bar { height: 10px; background: var(--lamp-off); border-radius: 999px; overflow: hidden; }
+.bar span { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width 0.25s; }
+.question { font-size: 1.4rem; line-height: 1.3; font-weight: bold; text-wrap: balance; }
+.how { background: var(--accent-soft); border-radius: 10px; padding: 10px 12px; }
+.answers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.answers .btn { min-height: 60px; font-size: 1.15rem; }
+.answers .wide { grid-column: 1 / -1; }
+
+/* Результат */
+.verdict { display: flex; gap: 18px; align-items: center; }
+.verdict > div { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.light {
+  flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px;
+  background: var(--housing); border: 2px solid var(--line); border-radius: 30px;
+}
+.lamp { width: 46px; height: 46px; border-radius: 50%; background: var(--lamp-off); }
+.light[data-on="red"] .lamp.r { background: var(--stop); box-shadow: 0 0 0 5px var(--stop-soft); }
+.light[data-on="yellow"] .lamp.y { background: var(--wait); box-shadow: 0 0 0 5px var(--wait-soft); }
+.light[data-on="green"] .lamp.g { background: var(--go); box-shadow: 0 0 0 5px var(--go-soft); }
+.panel[data-light="red"] { background: var(--stop-soft); border-color: var(--stop); }
+.panel[data-light="yellow"] { background: var(--wait-soft); border-color: var(--wait); }
+.panel[data-light="green"] { background: var(--go-soft); border-color: var(--go); }
+.score { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.signs { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.signs li { display: flex; gap: 10px; align-items: flex-start; }
+.signs li > div { min-width: 0; }
+.pts {
+  flex: none; min-width: 2.6em; padding: 2px 6px; text-align: center;
+  border-radius: 8px; font-weight: bold; font-variant-numeric: tabular-nums;
+}
+.pts.bad { background: var(--stop-soft); }
+.pts.dk { background: var(--wait-soft); }
+.pts.ok { background: var(--go-soft); }
+.note { background: var(--accent-soft); border-radius: 10px; padding: 12px 14px; }
+.status { font-weight: bold; }
+.status:empty { display: none; }
+
+/* Журнал и таблицы */
+.totals { display: flex; flex-wrap: wrap; gap: 8px 18px; font-variant-numeric: tabular-nums; }
+.totals b { font-size: 1.25rem; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+th, td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; vertical-align: top; }
+th { background: var(--accent-soft); }
+td.num, th.num { text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: baseline; }
+.dot.green { background: var(--go); } .dot.yellow { background: var(--wait); } .dot.red { background: var(--stop); }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; }
+#j-text {
+  width: 100%; min-height: 150px; padding: 10px;
+  border: 2px solid var(--line); border-radius: 10px; background: var(--card);
+  font-family: "JetBrains Mono", Consolas, "Courier New", monospace; font-size: 0.8rem; line-height: 1.4;
+}
+.textin {
+  width: 100%; min-height: 110px; padding: 8px 12px; resize: vertical;
+  background: var(--card); border: 2px solid var(--line); border-radius: 10px; line-height: 1.4;
+}
+.newstext {
+  max-height: 210px; overflow-y: auto; padding: 12px 14px;
+  background: var(--card); border: 2px solid var(--line); border-radius: 10px;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.rules { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; }
+footer { text-align: center; }
+@media (prefers-reduced-motion: reduce) { .bar span { transition: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <span class="glyph" aria-hidden="true"><i></i><i></i><i></i></span>
+      <h1>Проверь новость</h1>
+    </div>
+    <nav class="tabs" aria-label="Разделы">
+      <button type="button" class="tab" data-view="check" aria-pressed="true">Проверка</button>
+      <button type="button" class="tab" data-view="journal" aria-pressed="false">Журнал<span id="jcount" class="count" hidden></span></button>
+      <button type="button" class="tab" data-view="about" aria-pressed="false">Как это работает</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ПРОВЕРКА -->
+    <section id="view-check" class="stack">
+
+      <div id="stage-start" class="stack">
+        <p>Помощник подсказывает, можно ли доверять новости, картинке или сообщению. Ты отвечаешь на вопросы, программа считает баллы риска и включает светофор.</p>
+        <div class="panel">
+          <div class="field">
+            <label class="label" for="extext">Текст новости <span class="soft small">(необязательно)</span></label>
+            <textarea id="extext" class="textin" maxlength="6000" placeholder="Вставь сюда скопированный текст"></textarea>
+          </div>
+          <div class="field">
+            <span class="label">Скриншот <span class="soft small">(необязательно)</span></span>
+            <div id="shot-start" class="shot" hidden>
+              <img id="shot-start-img" alt="Загруженный скриншот">
+              <button type="button" class="linkbtn" id="shot-remove">Убрать скриншот</button>
+            </div>
+            <label class="btn ghost filebtn" id="shot-label">
+              <span id="shot-label-text">Загрузить скриншот</span>
+              <input type="file" id="shot-file" accept="image/*">
+            </label>
+            <p class="soft small">Текст и скриншот остаются на твоём устройстве. Они будут перед глазами, пока ты отвечаешь.</p>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Какой это материал?</h2>
+          <div class="choices" id="choices"></div>
+        </div>
+      </div>
+
+      <div id="stage-quiz" class="stack" hidden>
+        <div id="shot-quiz" class="shot" hidden>
+          <img id="shot-quiz-img" alt="Скриншот проверяемого материала">
+          <button type="button" class="linkbtn" id="shot-zoom">Увеличить</button>
+        </div>
+        <div id="text-quiz" class="newstext" hidden></div>
+        <div class="panel">
+          <div class="progress">
+            <span class="soft small" id="q-count"></span>
+            <div class="bar"><span id="q-bar"></span></div>
+          </div>
+          <p class="question" id="q-text" tabindex="-1"></p>
+          <p class="how small" id="q-how" hidden></p>
+          <div class="answers">
+            <button type="button" class="btn ghost" data-answer="yes" id="ans-yes">Да</button>
+            <button type="button" class="btn ghost" data-answer="no" id="ans-no">Нет</button>
+            <button type="button" class="btn quiet wide" data-answer="dk" id="ans-dk">Не знаю</button>
+          </div>
+        </div>
+        <div class="row">
+          <button type="button" class="btn quiet" id="q-back">Назад</button>
+          <button type="button" class="btn quiet" id="q-restart">Начать заново</button>
+        </div>
+      </div>
+
+      <div id="stage-result" class="stack" hidden>
+        <div class="panel" id="r-panel">
+          <p class="soft small" id="r-name"></p>
+          <div class="verdict">
+            <div class="light" id="r-light" role="img">
+              <span class="lamp r"></span><span class="lamp y"></span><span class="lamp g"></span>
+            </div>
+            <div>
+              <h2 id="r-title" tabindex="-1"></h2>
+              <p class="score" id="r-score"></p>
+              <p id="r-text"></p>
+            </div>
+          </div>
+          <p class="small" id="r-strong" hidden>Баллов немного, но сработал один из самых важных признаков, поэтому светофор жёлтый.</p>
+        </div>
+
+        <div class="panel" id="r-hits-box">
+          <h3>Что насторожило</h3>
+          <ul class="signs" id="r-hits"></ul>
+        </div>
+        <div class="panel" id="r-dk-box">
+          <h3>Что не удалось проверить</h3>
+          <ul class="signs" id="r-dk"></ul>
+        </div>
+        <div class="panel" id="r-good-box">
+          <h3>Что говорит в пользу материала</h3>
+          <ul class="signs" id="r-good"></ul>
+        </div>
+
+        <p class="note">Программа не знает, что произошло на самом деле. Она только считает признаки. Окончательное решение принимаешь ты.</p>
+
+        <div class="panel">
+          <h3>Для исследования</h3>
+          <p class="small">Если правильный ответ известен, отметь его. Запись попадёт в журнал, и программа посчитает, как часто она права.</p>
+          <div class="field">
+            <label class="label" for="exname">Подпись в журнале</label>
+            <input type="text" id="exname" maxlength="80" autocomplete="off">
+          </div>
+          <div class="row">
+            <button type="button" class="btn ghost" data-truth="true">Это правда</button>
+            <button type="button" class="btn ghost" data-truth="fake">Это фейк</button>
+            <button type="button" class="btn quiet" data-truth="unknown">Неизвестно</button>
+          </div>
+          <p class="status" id="r-status" role="status" aria-live="polite"></p>
+        </div>
+
+        <div class="row">
+          <button type="button" class="btn" id="r-again">Проверить другой материал</button>
+          <button type="button" class="btn quiet" id="r-journal">Открыть журнал</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ЖУРНАЛ -->
+    <section id="view-journal" class="stack" hidden>
+      <h2>Журнал проверок</h2>
+      <div class="panel" id="j-empty">
+        <p>Здесь будут записи о каждом проверенном материале: баллы, цвет светофора и правильный ответ.</p>
+        <p class="soft small">Чтобы появилась первая запись, пройди проверку и в конце отметь, правда это или фейк.</p>
+      </div>
+      <div class="stack" id="j-full" hidden>
+        <div class="panel">
+          <div class="totals" id="j-totals"></div>
+          <p class="small soft">«Верно» значит: зелёный у правды или красный у фейка. «Ошибка»: зелёный у фейка или красный у правды. «Сомнение»: жёлтый.</p>
+        </div>
+        <div class="scroll">
+          <table>
+            <thead><tr>
+              <th class="num">№</th><th>Материал</th><th>Тип</th><th class="num">Баллы</th>
+              <th>Светофор</th><th>На самом деле</th><th>Итог</th><th></th>
+            </tr></thead>
+            <tbody id="j-rows"></tbody>
+          </table>
+        </div>
+        <div class="field">
+          <label class="label" for="j-who">Кто проверял <span class="soft small">(необязательно)</span></label>
+          <input type="text" id="j-who" maxlength="40" placeholder="Имя" autocomplete="off">
+        </div>
+        <div class="field">
+          <label class="label" for="j-text">Текст журнала</label>
+          <textarea id="j-text" readonly></textarea>
+        </div>
+        <div class="row">
+          <button type="button" class="btn" id="j-share" hidden>Отправить журнал</button>
+          <button type="button" class="btn" id="j-copy">Скопировать</button>
+          <button type="button" class="btn ghost" id="j-save" hidden>Сохранить в файл .txt</button>
+          <button type="button" class="btn quiet" id="j-clear">Очистить журнал</button>
+        </div>
+        <p class="status" id="j-status" role="status" aria-live="polite"></p>
+        <div class="panel" id="j-confirm" hidden>
+          <p><b>Удалить все записи журнала?</b> Вернуть их будет нельзя.</p>
+          <div class="row">
+            <button type="button" class="btn" id="j-clear-yes">Да, удалить</button>
+            <button type="button" class="btn quiet" id="j-clear-no">Отмена</button>
+          </div>
+        </div>
+        <p class="soft small">Журнал хранится в этом браузере на этом устройстве. После проверок сразу отправь или скопируй журнал, чтобы записи не потерялись.</p>
+      </div>
+    </section>
+
+    <!-- КАК ЭТО РАБОТАЕТ -->
+    <section id="view-about" class="stack" hidden>
+      <h2>Как это работает</h2>
+      <div class="panel">
+        <ol class="rules" id="about-rules"></ol>
+      </div>
+      <div class="stack" id="about-tables"></div>
+    </section>
+  </main>
+
+  <footer class="soft small">Код приложения написан с помощью ИИ-ассистента.</footer>
+</div>
+
+<script>
+/* ============================================================
+   ПРИЗНАКИ ФЕЙКА. Этот блок можно менять.
+   q    — вопрос
+   risk — какой ответ опасный: 'yes' (да) или 'no' (нет)
+   w    — вес признака, от 1 до 3 (сколько баллов риска он даёт)
+   bad  — как признак называется в результате, если он сработал
+   ok   — как он называется, если всё хорошо
+   why  — почему это важно и что делать
+   how  — подсказка, как найти ответ (необязательно)
+   ============================================================ */
+const TYPES = {
+  news: {
+    title: 'Новость или пост',
+    note: 'Текст на сайте, в соцсети, в канале',
+    questions: [
+      { q: 'Указано, кто это написал или опубликовал?', risk: 'no', w: 2,
+        how: 'Ищи имя автора, название сайта или канала.',
+        bad: 'Не указан автор или источник', ok: 'Автор или источник указан',
+        why: 'Если никто не отвечает за слова, им трудно доверять.' },
+      { q: 'Этот источник тебе знаком как надёжный: известное СМИ, официальный сайт, учебное издание?', risk: 'no', w: 2,
+        bad: 'Источник незнакомый', ok: 'Источник известный и надёжный',
+        why: 'Посмотри, что ещё публикует этот сайт или канал и давно ли он существует.' },
+      { q: 'Есть дата: когда это произошло или когда опубликовано?', risk: 'no', w: 1,
+        bad: 'Нет даты', ok: 'Дата указана',
+        why: 'Старую новость часто выдают за свежую. Найди, когда она появилась впервые.' },
+      { q: 'Заголовок кричит: слова «ШОК», «СРОЧНО», много заглавных букв и восклицательных знаков?', risk: 'yes', w: 2,
+        bad: 'Кричащий заголовок', ok: 'Заголовок спокойный',
+        why: 'Так привлекают внимание, когда клики важнее точности. Прочитай весь текст, а не только заголовок.' },
+      { q: 'После прочтения сразу хочется испугаться, разозлиться или срочно рассказать всем?', risk: 'yes', w: 1,
+        bad: 'Материал давит на эмоции', ok: 'Материал не давит на эмоции',
+        why: 'Фейки рассчитаны на то, что человек перешлёт их, не успев подумать. Сделай паузу.' },
+      { q: 'В тексте есть точные факты, которые можно проверить: имена, место, цифры?', risk: 'no', w: 2,
+        bad: 'Нет фактов, которые можно проверить', ok: 'Есть проверяемые факты',
+        why: 'Слова «учёные доказали» без имён и названий ничего не доказывают.' },
+      { q: 'Эта же новость нашлась хотя бы в двух других известных источниках?', risk: 'no', w: 3,
+        how: 'Введи главные слова заголовка в поисковик.',
+        bad: 'Другие источники об этом не пишут', ok: 'Новость подтверждают другие источники',
+        why: 'О настоящем событии обычно сообщают сразу несколько изданий.' },
+      { q: 'В тексте есть грубые ошибки или странные, нескладные фразы?', risk: 'yes', w: 1,
+        bad: 'В тексте ошибки или странные фразы', ok: 'Текст написан грамотно',
+        why: 'В редакциях тексты проверяют. Много ошибок означает, что материал делали наспех.' },
+      { q: 'Тебя просят что-то срочно сделать: переслать, перейти по ссылке, ввести свои данные?', risk: 'yes', w: 3,
+        bad: 'Просят срочно что-то сделать', ok: 'Никто ничего не требует',
+        why: 'Так действуют мошенники. Не переходи по ссылке и не вводи данные, пока не спросишь взрослых.' }
+    ]
+  },
+  pic: {
+    title: 'Фото или картинка',
+    note: 'Снимок, рисунок, изображение от нейросети',
+    questions: [
+      { q: 'Известно, кто и когда сделал этот снимок или рисунок?', risk: 'no', w: 2,
+        bad: 'Неизвестно, кто и когда сделал изображение', ok: 'Автор и время съёмки известны',
+        why: 'Фото без автора могли взять из другого места и другого времени.' },
+      { q: 'Есть странные детали: лишние пальцы, искажённые лица, надписи из непонятных букв?', risk: 'yes', w: 3,
+        how: 'Увеличь картинку и рассмотри руки, лица, текст и фон.',
+        bad: 'На изображении есть странные детали', ok: 'Странных деталей нет',
+        why: 'Такие ошибки часто делают нейросети, которые рисуют картинки.' },
+      { q: 'Картинка выглядит слишком гладкой и идеальной, будто нарисованная?', risk: 'yes', w: 1,
+        bad: 'Изображение слишком гладкое и идеальное', ok: 'Изображение выглядит естественно',
+        why: 'У настоящих фотографий есть шум, неровности, случайные мелочи.' },
+      { q: 'Тени, отражения и размеры предметов выглядят правильно?', risk: 'no', w: 2,
+        bad: 'Тени, отражения или размеры не сходятся', ok: 'Тени и размеры в порядке',
+        why: 'При монтаже части картинки берут из разных снимков, и свет на них падает по-разному.' },
+      { q: 'Поиск по картинке нашёл это изображение в надёжном источнике с таким же описанием?', risk: 'no', w: 3,
+        how: 'Загрузи картинку в поиск по изображению (Google Объектив, Яндекс Картинки).',
+        bad: 'Поиск по картинке не подтвердил описание', ok: 'Поиск по картинке подтвердил описание',
+        why: 'Поиск показывает, где картинка появилась впервые. Часто это другое событие или другой год.' },
+      { q: 'Подпись к картинке сообщает что-то невероятное: «такого ещё не было», «вы не поверите»?', risk: 'yes', w: 1,
+        bad: 'Невероятная подпись', ok: 'Подпись спокойная',
+        why: 'Чем удивительнее заявление, тем больше нужно доказательств.' },
+      { q: 'Есть пометка, что изображение создано ИИ, или значок программы-генератора?', risk: 'yes', w: 3,
+        bad: 'Есть пометка, что изображение создано ИИ', ok: 'Пометок о создании ИИ нет',
+        why: 'Значит, это рисунок нейросети, а не снимок настоящего события.' },
+      { q: 'Об этом событии сообщают известные СМИ или официальные сайты?', risk: 'no', w: 2,
+        bad: 'Событие не подтверждают другие источники', ok: 'Событие подтверждают другие источники',
+        why: 'Если событие было, о нём есть и другие фото и сообщения.' }
+    ]
+  },
+  msg: {
+    title: 'Сообщение из мессенджера',
+    note: 'Рассылка в WhatsApp, Telegram, в чате класса',
+    questions: [
+      { q: 'Известно, кто первым написал это сообщение?', risk: 'no', w: 2,
+        bad: 'Неизвестно, кто автор сообщения', ok: 'Автор сообщения известен',
+        why: 'Пометка «Переслано» значит, что твой знакомый не автор. Спроси, откуда он это взял.' },
+      { q: 'Есть слова «перешлите всем», «расскажи друзьям», «пока не удалили»?', risk: 'yes', w: 3,
+        bad: 'Просят переслать всем', ok: 'Переслать не просят',
+        why: 'Настоящим новостям такие просьбы не нужны. Так фейк распространяется сам.' },
+      { q: 'Ссылаются на людей без имени: «знакомый врач», «один сотрудник сказал»?', risk: 'yes', w: 2,
+        bad: 'Ссылаются на людей без имени', ok: 'Названы настоящие имена и организации',
+        why: 'Человека без имени нельзя найти и спросить. Проверить такие слова невозможно.' },
+      { q: 'Сообщение пугает или торопит: «срочно», «опасно», «осталось два часа»?', risk: 'yes', w: 2,
+        bad: 'Сообщение пугает или торопит', ok: 'Сообщение спокойное',
+        why: 'Спешка мешает думать. Важные предупреждения публикуют официально.' },
+      { q: 'Обещают подарок, выигрыш или деньги?', risk: 'yes', w: 3,
+        bad: 'Обещают подарок или деньги', ok: 'Ничего не обещают',
+        why: 'Бесплатные призы за пересылку или переход по ссылке предлагают мошенники.' },
+      { q: 'Есть ссылка на незнакомый сайт или просьба ввести свои данные?', risk: 'yes', w: 3,
+        bad: 'Есть незнакомая ссылка или просьба ввести данные', ok: 'Ссылок и просьб о данных нет',
+        why: 'Не переходи по ссылке. Покажи сообщение взрослым.' },
+      { q: 'То же самое написано на официальном сайте или в известных СМИ?', risk: 'no', w: 3,
+        how: 'Открой сайт школы, акимата или новостное издание и поищи это сообщение.',
+        bad: 'Официальные источники этого не подтверждают', ok: 'Официальные источники подтверждают',
+        why: 'Если это правда, официальный источник сообщит об этом сам.' },
+      { q: 'Есть точные данные: дата, место, название организации?', risk: 'no', w: 1,
+        bad: 'Нет точных данных', ok: 'Точные данные есть',
+        why: 'Сообщение без даты и места можно пересылать годами.' }
+    ]
+  }
+};
+
+/* ПРАВИЛА СВЕТОФОРА. Их тоже можно менять. */
+const DONT_KNOW_POINTS = 1;  // сколько баллов даёт ответ «Не знаю»
+const YELLOW_FROM = 30;      // с какого процента риска включается жёлтый
+const RED_FROM = 60;         // с какого процента риска включается красный
+const STRONG_WEIGHT = 3;     // признак с таким весом не даёт включить зелёный
+
+const VERDICTS = {
+  green: { name: 'зелёный', title: 'Признаков фейка почти нет',
+    text: 'Материал выглядит надёжно. Если он важный, сверь его ещё с одним источником.' },
+  yellow: { name: 'жёлтый', title: 'Есть сомнения',
+    text: 'Доверять материалу полностью пока нельзя. Проверь то, что указано ниже, и потом решай.' },
+  red: { name: 'красный', title: 'Много признаков фейка',
+    text: 'Не пересылай этот материал. Проверь его по советам ниже или покажи взрослым.' }
+};
+const TRUTHS = { 'true': 'правда', fake: 'фейк', unknown: 'неизвестно' };
+
+/* ---------- Подсчёт баллов: главная логика программы ---------- */
+function countRisk(typeKey, answers) {
+  const qs = TYPES[typeKey].questions;
+  let score = 0, max = 0, strong = false;
+  const hits = [], unknown = [], good = [];
+  qs.forEach(function (q, i) {
+    max += q.w;
+    const a = answers[i];
+    if (a === 'dk') {                 // не знаю
+      score += DONT_KNOW_POINTS; unknown.push(q);
+    } else if (a === q.risk) {        // опасный ответ
+      score += q.w; hits.push(q);
+      if (q.w >= STRONG_WEIGHT) strong = true;
+    } else {                          // хороший ответ
+      good.push(q);
+    }
+  });
+  const pct = Math.round(score / max * 100);
+  let light = 'green';
+  if (pct >= RED_FROM) light = 'red';
+  else if (pct >= YELLOW_FROM || strong) light = 'yellow';
+  return { score: score, max: max, pct: pct, light: light, strong: strong,
+           hits: hits, unknown: unknown, good: good };
+}
+
+function outcome(light, truth) {
+  if (truth === 'unknown') return '—';
+  if (light === 'yellow') return 'сомнение';
+  if ((light === 'green' && truth === 'true') || (light === 'red' && truth === 'fake')) return 'верно';
+  return 'ошибка';
+}
+
+/* ---------- Состояние ---------- */
+const state = { stage: 'start', name: '', text: '', type: null, img: null, i: 0, answers: [], result: null, saved: false };
+
+/* Незаконченная проверка запоминается: можно уйти в другое приложение и вернуться */
+const DRAFT = 'proverNovost.draft.v1';
+const DRAFT_IMG = 'proverNovost.shot.v1';
+function persist() {
+  try {
+    localStorage.setItem(DRAFT, JSON.stringify({
+      stage: state.stage, name: state.name, text: state.text, type: state.type, i: state.i,
+      answers: state.answers, saved: state.saved,
+      extext: $('extext').value
+    }));
+  } catch (e) { /* проверка просто не запомнится */ }
+}
+const STORE = 'proverNovost.journal.v1';
+let journal = loadJournal();
+
+function loadJournal() {
+  try { const raw = localStorage.getItem(STORE); return raw ? JSON.parse(raw) : []; }
+  catch (e) { return []; }
+}
+function storeJournal() {
+  try { localStorage.setItem(STORE, JSON.stringify(journal)); } catch (e) { /* журнал останется до закрытия страницы */ }
+}
+
+const $ = function (id) { return document.getElementById(id); };
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+
+/* ---------- Разделы ---------- */
+function showView(name) {
+  ['check', 'journal', 'about'].forEach(function (v) { $('view-' + v).hidden = v !== name; });
+  document.querySelectorAll('.tab').forEach(function (t) {
+    t.setAttribute('aria-pressed', String(t.dataset.view === name));
+  });
+  if (name === 'journal') renderJournal();
+}
+function showStage(name) {
+  ['start', 'quiz', 'result'].forEach(function (s) { $('stage-' + s).hidden = s !== name; });
+  state.stage = name;
+  persist();
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll('.tab').forEach(function (t) {
+  t.addEventListener('click', function () { showView(t.dataset.view); });
+});
+
+/* ---------- Старт ---------- */
+Object.keys(TYPES).forEach(function (key) {
+  const b = el('button', 'choice');
+  b.type = 'button';
+  b.appendChild(el('b', '', TYPES[key].title));
+  b.appendChild(el('span', 'small soft', TYPES[key].note));
+  b.addEventListener('click', function () { startCheck(key); });
+  $('choices').appendChild(b);
+});
+
+$('shot-file').addEventListener('change', function (e) {
+  const f = e.target.files && e.target.files[0];
+  if (!f || f.type.indexOf('image/') !== 0) return;
+  const reader = new FileReader();
+  reader.onload = function () {
+    // уменьшаем большой скриншот, чтобы он помещался в память телефона
+    const im = new Image();
+    im.onload = function () {
+      try {
+        const k = Math.min(1, 1600 / Math.max(im.width, im.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(im, 0, 0, c.width, c.height);
+        setShot(c.toDataURL('image/jpeg', 0.82));
+      } catch (e) { setShot(reader.result); }
+    };
+    im.onerror = function () { setShot(reader.result); };
+    im.src = reader.result;
+  };
+  reader.readAsDataURL(f);
+});
+$('shot-remove').addEventListener('click', function () { setShot(null); $('shot-file').value = ''; });
+function setShot(src) {
+  state.img = src;
+  try {
+    if (src) localStorage.setItem(DRAFT_IMG, src); else localStorage.removeItem(DRAFT_IMG);
+  } catch (e) {
+    try { localStorage.removeItem(DRAFT_IMG); } catch (e2) { /* не страшно */ }
+  }
+  $('shot-start').hidden = !src;
+  $('shot-quiz').hidden = !src;
+  if (src) { $('shot-start-img').src = src; $('shot-quiz-img').src = src; }
+  $('shot-label-text').textContent = src ? 'Выбрать другой скриншот' : 'Загрузить скриншот';
+}
+$('shot-zoom').addEventListener('click', function () {
+  const big = $('shot-quiz').classList.toggle('big');
+  $('shot-zoom').textContent = big ? 'Уменьшить' : 'Увеличить';
+});
+
+/* Подпись для журнала: начало текста, а если текста нет, то номер по порядку */
+function autoName() {
+  if (state.text) return state.text.slice(0, 40).replace(/\s+/g, ' ') + (state.text.length > 40 ? '…' : '');
+  return (state.img ? 'Скриншот ' : 'Материал ') + (journal.length + 1);
+}
+function startCheck(typeKey) {
+  state.type = typeKey;
+  state.text = $('extext').value.trim();
+  state.name = autoName();
+  state.i = 0; state.answers = []; state.result = null; state.saved = false;
+  showText();
+  renderQuestion();
+  showStage('quiz');
+}
+
+/* ---------- Вопросы ---------- */
+function showText() {
+  $('text-quiz').hidden = !state.text;
+  $('text-quiz').textContent = state.text || '';
+}
+function renderQuestion() {
+  const qs = TYPES[state.type].questions;
+  const q = qs[state.i];
+  $('q-count').textContent = 'Вопрос ' + (state.i + 1) + ' из ' + qs.length;
+  $('q-bar').style.width = Math.round(state.i / qs.length * 100) + '%';
+  $('q-text').textContent = q.q;
+  $('q-how').hidden = !q.how;
+  $('q-how').textContent = q.how ? 'Как узнать: ' + q.how : '';
+  $('q-back').disabled = state.i === 0;
+  persist();
+}
+document.querySelectorAll('[data-answer]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    state.answers[state.i] = b.dataset.answer;
+    if (state.i + 1 < TYPES[state.type].questions.length) {
+      state.i += 1; renderQuestion(); $('q-text').focus();
+    } else {
+      renderResult();
+    }
+  });
+});
+$('q-back').addEventListener('click', function () {
+  if (state.i > 0) { state.i -= 1; renderQuestion(); }
+});
+$('q-restart').addEventListener('click', function () { showStage('start'); });
+
+/* ---------- Результат ---------- */
+function fillSigns(listId, boxId, items, cls, pointsOf, textOf, extraOf) {
+  const list = $(listId);
+  list.textContent = '';
+  $(boxId).hidden = items.length === 0;
+  items.forEach(function (q) {
+    const li = el('li');
+    li.appendChild(el('span', 'pts ' + cls, pointsOf(q)));
+    const d = el('div');
+    d.appendChild(el('b', '', textOf(q)));
+    const extra = extraOf(q);
+    if (extra) { d.appendChild(el('br')); d.appendChild(el('span', 'small', extra)); }
+    li.appendChild(d);
+    list.appendChild(li);
+  });
+}
+function renderResult() {
+  const r = countRisk(state.type, state.answers);
+  state.result = r;
+  const v = VERDICTS[r.light];
+  $('r-panel').dataset.light = r.light;
+  $('r-light').dataset.on = r.light;
+  $('r-light').setAttribute('aria-label', 'Светофор: ' + v.name);
+  $('r-name').textContent = state.name + ' · ' + TYPES[state.type].title;
+  $('r-title').textContent = v.title;
+  $('r-score').textContent = 'Баллы риска: ' + r.score + ' из ' + r.max + ' (' + r.pct + '%)';
+  $('r-text').textContent = v.text;
+  $('r-strong').hidden = !(r.light === 'yellow' && r.pct < YELLOW_FROM);
+  fillSigns('r-hits', 'r-hits-box', r.hits, 'bad',
+    function (q) { return '+' + q.w; }, function (q) { return q.bad; }, function (q) { return q.why; });
+  fillSigns('r-dk', 'r-dk-box', r.unknown, 'dk',
+    function () { return '+' + DONT_KNOW_POINTS; }, function (q) { return q.q; },
+    function (q) { return q.how ? 'Как узнать: ' + q.how : ''; });
+  fillSigns('r-good', 'r-good-box', r.good, 'ok',
+    function () { return '0'; }, function (q) { return q.ok; }, function () { return ''; });
+  $('r-status').textContent = state.saved ? 'Эта проверка уже сохранена в журнал.' : '';
+  document.querySelectorAll('[data-truth]').forEach(function (b) { b.disabled = state.saved; });
+  $('exname').value = state.name;
+  $('exname').disabled = state.saved;
+  showStage('result');
+  $('r-title').focus();
+}
+document.querySelectorAll('[data-truth]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    if (state.saved || !state.result) return;
+    journal.push({
+      name: state.name, type: state.type, score: state.result.score, max: state.result.max,
+      pct: state.result.pct, light: state.result.light, truth: b.dataset.truth,
+      date: new Date().toISOString()
+    });
+    storeJournal();
+    state.saved = true;
+    $('exname').disabled = true;
+    persist();
+    document.querySelectorAll('[data-truth]').forEach(function (x) { x.disabled = true; });
+    $('r-status').textContent = 'Сохранено в журнал, запись № ' + journal.length + '.';
+    updateCount();
+  });
+});
+$('r-again').addEventListener('click', function () {
+  $('exname').value = ''; $('extext').value = ''; state.text = '';
+  setShot(null); $('shot-file').value = '';
+  showStage('start');
+});
+$('r-journal').addEventListener('click', function () { showView('journal'); });
+
+/* ---------- Журнал ---------- */
+function updateCount() {
+  $('jcount').hidden = journal.length === 0;
+  $('jcount').textContent = journal.length;
+}
+function journalTotals() {
+  const t = { all: journal.length, known: 0, right: 0, wrong: 0, doubt: 0 };
+  journal.forEach(function (r) {
+    const o = outcome(r.light, r.truth);
+    if (o === '—') return;
+    t.known += 1;
+    if (o === 'верно') t.right += 1; else if (o === 'ошибка') t.wrong += 1; else t.doubt += 1;
+  });
+  return t;
+}
+function journalText() {
+  const t = journalTotals();
+  const lines = ['Проверь новость. Журнал проверок', 'Проверял(а): ' + (who() || 'не указано'),
+    'Дата: ' + new Date().toLocaleDateString('ru-RU'), '',
+    '№ | Материал | Тип | Баллы | Светофор | На самом деле | Итог'];
+  journal.forEach(function (r, i) {
+    lines.push([i + 1, r.name, TYPES[r.type].title, r.score + ' из ' + r.max + ' (' + r.pct + '%)',
+      VERDICTS[r.light].name, TRUTHS[r.truth], outcome(r.light, r.truth)].join(' | '));
+  });
+  lines.push('', 'Всего проверок: ' + t.all, 'С известным ответом: ' + t.known,
+    'Верно: ' + t.right, 'Ошибок: ' + t.wrong, 'Сомнение (жёлтый): ' + t.doubt);
+  if (t.known > 0) lines.push('Точность: ' + Math.round(t.right / t.known * 100) + '% (верно из проверок с известным ответом)');
+  return lines.join('\n');
+}
+function renderJournal() {
+  updateCount();
+  $('j-empty').hidden = journal.length > 0;
+  $('j-full').hidden = journal.length === 0;
+  $('j-confirm').hidden = true;
+  if (journal.length === 0) return;
+  const t = journalTotals();
+  const totals = $('j-totals');
+  totals.textContent = '';
+  [['Всего', t.all], ['Верно', t.right], ['Ошибок', t.wrong], ['Сомнение', t.doubt],
+   ['Точность', t.known ? Math.round(t.right / t.known * 100) + '%' : '—']].forEach(function (p) {
+    const s = el('span');
+    s.appendChild(document.createTextNode(p[0] + ': '));
+    s.appendChild(el('b', '', String(p[1])));
+    totals.appendChild(s);
+  });
+  const rows = $('j-rows');
+  rows.textContent = '';
+  journal.forEach(function (r, i) {
+    const tr = el('tr');
+    tr.appendChild(el('td', 'num', String(i + 1)));
+    tr.appendChild(el('td', '', r.name));
+    tr.appendChild(el('td', '', TYPES[r.type].title));
+    tr.appendChild(el('td', 'num', r.score + ' из ' + r.max));
+    const lt = el('td');
+    lt.appendChild(el('span', 'dot ' + r.light));
+    lt.appendChild(document.createTextNode(VERDICTS[r.light].name));
+    tr.appendChild(lt);
+    tr.appendChild(el('td', '', TRUTHS[r.truth]));
+    tr.appendChild(el('td', '', outcome(r.light, r.truth)));
+    const del = el('td');
+    const db = el('button', 'linkbtn', 'Удалить');
+    db.type = 'button';
+    db.setAttribute('aria-label', 'Удалить запись ' + (i + 1));
+    db.addEventListener('click', function () { journal.splice(i, 1); storeJournal(); renderJournal(); });
+    del.appendChild(db);
+    tr.appendChild(del);
+    rows.appendChild(tr);
+  });
+  $('j-text').value = journalText();
+}
+/* Имя проверяющего: попадает в текст журнала и в имя файла */
+const WHO_STORE = 'proverNovost.who.v1';
+function who() { return $('j-who').value.trim(); }
+try { $('j-who').value = localStorage.getItem(WHO_STORE) || ''; } catch (e) { /* имя просто не запомнится */ }
+$('j-who').addEventListener('input', function () {
+  try { localStorage.setItem(WHO_STORE, $('j-who').value); } catch (e) { /* не страшно */ }
+  $('j-text').value = journalText();
+});
+function fileName() {
+  const name = who().replace(/[\\\/:*?"<>|]/g, '').replace(/[.\s]+$/, '');
+  return 'Журнал проверок' + (name ? ' ' + name : '') + '.txt';
+}
+
+function copyJournal() {
+  const ta = $('j-text');
+  const done = function () { $('j-status').textContent = 'Скопировано. Вставь текст в сообщение или документ.'; };
+  const manual = function () {
+    ta.focus(); ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    if (ok) done(); else $('j-status').textContent = 'Текст выделен. Скопируй его вручную.';
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(ta.value).then(done).catch(manual);
+  } else { manual(); }
+}
+$('j-copy').addEventListener('click', copyJournal);
+
+/* «Отправить» и «Сохранить в файл» работают, когда приложение открыто само по себе, а не внутри другой страницы */
+let framed = true;
+try { framed = window.top !== window.self; } catch (e) { framed = true; }
+
+if (!framed && navigator.share) {
+  $('j-share').hidden = false;
+  $('j-share').addEventListener('click', function () {
+    let data = { title: 'Журнал проверок', text: journalText() };
+    try {
+      const f = new File(['﻿' + journalText()], fileName(), { type: 'text/plain' });
+      if (navigator.canShare && navigator.canShare({ files: [f] })) data = { title: 'Журнал проверок', files: [f] };
+    } catch (e) { /* отправим как текст */ }
+    navigator.share(data).then(function () {
+      $('j-status').textContent = 'Журнал передан в выбранное приложение.';
+    }).catch(function (err) {
+      if (err && err.name === 'AbortError') return;   // отправку отменили
+      copyJournal();
+    });
+  });
+}
+if (!framed) {
+  $('j-save').hidden = false;
+  $('j-save').addEventListener('click', function () {
+    const blob = new Blob(['﻿' + journalText()], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fileName();
+    document.body.appendChild(a); a.click(); a.remove();
+    $('j-status').textContent = 'Файл «' + fileName() + '» сохранён в загрузки.';
+  });
+}
+$('j-clear').addEventListener('click', function () { $('j-confirm').hidden = false; });
+$('j-clear-no').addEventListener('click', function () { $('j-confirm').hidden = true; });
+$('j-clear-yes').addEventListener('click', function () {
+  journal = []; storeJournal();
+  $('j-who').value = '';
+  try { localStorage.removeItem(WHO_STORE); } catch (e) { /* не страшно */ }
+  $('j-status').textContent = ''; renderJournal();
+});
+
+/* ---------- Как это работает (собирается из признаков выше) ---------- */
+(function renderAbout() {
+  [
+    'Ты выбираешь тип материала. Для каждого типа свой набор признаков.',
+    'На каждый вопрос отвечаешь «Да», «Нет» или «Не знаю».',
+    'У каждого признака есть вес от 1 до 3. Если ответ опасный, программа прибавляет столько баллов риска, сколько весит признак.',
+    'Ответ «Не знаю» даёт ' + DONT_KNOW_POINTS + ' балл: непроверенное тоже риск.',
+    'Программа считает, сколько процентов от самого большого числа баллов набрано.',
+    'Меньше ' + YELLOW_FROM + '% — зелёный. От ' + YELLOW_FROM + '% до ' + (RED_FROM - 1) + '% — жёлтый. ' + RED_FROM + '% и больше — красный.',
+    'Если сработал хотя бы один признак с весом ' + STRONG_WEIGHT + ', зелёный не включается: будет не ниже жёлтого.'
+  ].forEach(function (t) { $('about-rules').appendChild(el('li', '', t)); });
+  Object.keys(TYPES).forEach(function (key) {
+    const box = el('div', 'stack');
+    const total = TYPES[key].questions.reduce(function (s, q) { return s + q.w; }, 0);
+    box.appendChild(el('h3', '', TYPES[key].title + ' (самое большое число баллов: ' + total + ')'));
+    const wrap = el('div', 'scroll');
+    const table = el('table');
+    const head = el('tr');
+    ['Вопрос', 'Опасный ответ', 'Вес'].forEach(function (h, i) { head.appendChild(el('th', i ? 'num' : '', h)); });
+    const thead = el('thead'); thead.appendChild(head); table.appendChild(thead);
+    const tb = el('tbody');
+    TYPES[key].questions.forEach(function (q) {
+      const tr = el('tr');
+      tr.appendChild(el('td', '', q.q));
+      tr.appendChild(el('td', 'num', q.risk === 'yes' ? 'Да' : 'Нет'));
+      tr.appendChild(el('td', 'num', String(q.w)));
+      tb.appendChild(tr);
+    });
+    table.appendChild(tb); wrap.appendChild(table); box.appendChild(wrap);
+    $('about-tables').appendChild(box);
+  });
+})();
+
+/* ---------- Возврат к незаконченной проверке после перезагрузки страницы ---------- */
+$('extext').addEventListener('input', persist);
+$('exname').addEventListener('input', function () {
+  if (!state.type || state.saved) return;
+  state.name = $('exname').value.trim() || autoName();
+  $('r-name').textContent = state.name + ' · ' + TYPES[state.type].title;
+  persist();
+});
+(function restore() {
+  let d = null, img = null;
+  try { d = JSON.parse(localStorage.getItem(DRAFT) || 'null'); } catch (e) { d = null; }
+  try { img = localStorage.getItem(DRAFT_IMG); } catch (e) { img = null; }
+  if (img) setShot(img);
+  if (!d) return;
+  $('extext').value = d.extext || '';
+  if (!TYPES[d.type] || !Array.isArray(d.answers)) return;
+  const total = TYPES[d.type].questions.length;
+  state.type = d.type; state.name = d.name || 'Материал'; state.text = d.text || '';
+  state.answers = d.answers.slice(0, total); state.saved = !!d.saved;
+  showText();
+  if (d.stage === 'quiz') {
+    state.i = Math.max(0, Math.min(total - 1, d.i || 0));
+    renderQuestion(); showStage('quiz');
+  } else if (d.stage === 'result' && state.answers.filter(Boolean).length === total) {
+    renderResult();
+  }
+})();
+
+updateCount();
+</script>
+</body>
+</html>
